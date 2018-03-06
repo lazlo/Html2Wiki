@@ -742,6 +742,9 @@ HERE;
                     default:
                         // if a simple print doesn't work, then your switch has bad syntax
                         // print "$entry\n";
+                        // NOTE Allow importing non-images files from an archive. This is
+                        // currently implemented in a rather hackish way by using the availableImages array.
+                        $availableImages[] = $entry;
                         break;
                 }
             }
@@ -889,6 +892,21 @@ HERE
         unlink( $tempfilename );
     }
 
+    private static function mwmPrependLinksToFilesWithNamespace($content, $namespace) {
+        /* NOTE: Using this regex we want to preprend improper mediawiki markup links to files (e.g [[Foo.zip|Sometext]])
+         * with the proper namespace (either File: or media:).
+         * Currently, we modified the "doUpload" method to allow us to upload any kind of files and pandoc actually creates
+         * mediawiki markup links in the contents. Still, the links created are missing the proper namespace.
+         */
+        $reLinkToFile = '(\[\[(?![a-zA-Z]+:)([0-9a-zA-Z\-_]+\.[0-9a-zA-Z\-_]+[^\]]*)\]\])mu';
+        $prependLinkWithNs = '[[' . $namespace . ':\1]]';
+        $newContent = preg_replace($reLinkToFile, $prependLinkWithNs, $content);
+        if ($newContent != NULL) {
+            $content = $newContent;
+        }
+        return $content;
+    }
+
     /**
      * Processing a file is done in five phases:
      * 1) Tidy tries to normalize the file
@@ -945,6 +963,8 @@ HERE
         // panDoc apparently lets double single quotes ''italics'' pass through
         // so we can qpItalics before running panDoc2Wiki()
         $this->panDoc2Wiki();
+	$this->mContent = self::mwmPrependLinksToFilesWithNamespace($this->mContent, "media");
+
         $this->substituteTemplates();
         $this->autoCategorize();
         // @todo turn this into a function, and ensure that the CollectionName
